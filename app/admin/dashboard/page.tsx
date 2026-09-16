@@ -1,177 +1,221 @@
-
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
-export default function AdminDashboard() {
+import { supabase } from "@/lib/supabase/client";
+
+import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminTopbar from "@/components/admin/AdminTopbar";
+import AdminStats from "@/components/admin/AdminStats";
+import RecentActivity from "@/components/admin/RecentActivity";
+
+type DashboardStats = {
+  totalUsers: number;
+  students: number;
+  lecturers: number;
+  bookings: number;
+};
+
+type Activity = {
+  type: string;
+  title: string;
+  description: string;
+  created_at: string;
+};
+
+export default function AdminDashboardPage() {
+  const [adminName, setAdminName] =
+    useState("Admin User");
+
+  const [stats, setStats] =
+    useState<DashboardStats>({
+      totalUsers: 0,
+      students: 0,
+      lecturers: 0,
+      bookings: 0,
+    });
+
+  const [recentActivity, setRecentActivity] =
+    useState<Activity[]>([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [message, setMessage] =
+    useState("");
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  const loadDashboard = async () => {
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError || !session) {
+        setMessage(
+          "Admin is not authenticated."
+        );
+        return;
+      }
+
+      const user = session.user;
+
+      const role =
+        user.user_metadata?.role
+          ?.toString()
+          .toLowerCase();
+
+      if (role !== "admin") {
+        setMessage(
+          "This account is not registered as an administrator."
+        );
+        return;
+      }
+
+      const name =
+        user.user_metadata?.full_name ||
+        user.email?.split("@")[0] ||
+        "Admin User";
+
+      setAdminName(name);
+
+      const response = await fetch(
+        "/api/admin/dashboard",
+        {
+          method: "GET",
+
+          headers: {
+            Authorization:
+              `Bearer ${session.access_token}`,
+          },
+
+          cache: "no-store",
+        }
+      );
+
+      const responseText =
+        await response.text();
+
+      let data: any = {};
+
+      try {
+        data = responseText
+          ? JSON.parse(responseText)
+          : {};
+      } catch (error) {
+        console.error(
+          "Admin API returned invalid response:",
+          responseText
+        );
+
+        setMessage(
+          "Admin dashboard API failed. Check the terminal."
+        );
+
+        return;
+      }
+
+      if (!response.ok) {
+        setMessage(
+          data.message ||
+            "Failed to load admin dashboard."
+        );
+        return;
+      }
+
+      setStats(
+        data.stats || {
+          totalUsers: 0,
+          students: 0,
+          lecturers: 0,
+          bookings: 0,
+        }
+      );
+
+      setRecentActivity(
+        data.recentActivity || []
+      );
+    } catch (error) {
+      console.error(
+        "Admin dashboard error:",
+        error
+      );
+
+      setMessage(
+        "Something went wrong while loading the dashboard."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="flex min-h-screen bg-[#f5f6f8]">
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 flex h-screen w-64 flex-col bg-[#162544] text-white">
-        {/* Logo */}
-        <div className="border-b border-white/10 px-7 py-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2f63c8] text-lg font-bold">
-              C
-            </div>
+    <div className="min-h-screen bg-[#f5f6f8]">
 
-            <div>
-              <h1 className="text-xl font-bold">ConsultBook</h1>
-              <p className="mt-1 text-xs text-slate-400">
-                Book & Consult Platform
-              </p>
-            </div>
-          </div>
+      <AdminSidebar
+        name={adminName}
+      />
 
-          {/* Admin */}
-          <div className="mt-6 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d97706] font-bold">
-              AU
-            </div>
+      <div className="ml-[240px] min-h-screen">
 
-            <div>
-              <p className="text-sm font-semibold">Admin User</p>
-              <p className="text-xs text-slate-400">Administrator</p>
-            </div>
-          </div>
-        </div>
+        <AdminTopbar
+          name={adminName}
+          title="Admin Dashboard"
+        />
 
-        {/* Navigation */}
-        <nav className="mt-5 flex flex-col">
-          <Link
-            href="/admin/dashboard"
-            className="border-l-4 border-blue-500 bg-white/10 px-7 py-4 text-sm font-semibold"
-          >
-            • Dashboard
-          </Link>
+        <main className="p-8">
 
-          <Link
-            href="/admin/users"
-            className="border-l-4 border-transparent px-7 py-4 text-sm text-slate-300 hover:bg-white/5"
-          >
-            • Users
-          </Link>
-
-          <Link
-            href="/admin/bookings"
-            className="border-l-4 border-transparent px-7 py-4 text-sm text-slate-300 hover:bg-white/5"
-          >
-            • Bookings
-          </Link>
-
-          <Link
-            href="/admin/reports"
-            className="border-l-4 border-transparent px-7 py-4 text-sm text-slate-300 hover:bg-white/5"
-          >
-            • Reports
-          </Link>
-        </nav>
-
-        {/* Logout */}
-        <div className="mt-auto border-t border-white/10 p-6">
-          <Link
-            href="/login"
-            className="block rounded-lg border border-white/20 px-4 py-3 text-center text-sm font-semibold text-slate-300 hover:bg-white/10"
-          >
-            Logout
-          </Link>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="ml-64 min-h-screen flex-1">
-        {/* Topbar */}
-        <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-7">
-          <h2 className="text-2xl font-bold text-[#263451]">
-            Admin Dashboard
-          </h2>
-
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#d97706] font-semibold text-white">
-              AU
-            </div>
-
-            <div>
-              <p className="font-semibold text-[#263451]">Admin User</p>
-              <p className="text-sm text-slate-500">Administrator</p>
-            </div>
-          </div>
-        </header>
-
-        <div className="p-7">
           {/* Welcome */}
-          <div className="mb-7">
-            <h1 className="text-2xl font-bold text-[#263451]">
-              Welcome back, Admin!
-            </h1>
+          <div>
+            <h2 className="text-2xl font-bold text-[#14244a]">
+              Welcome back, {adminName}!
+            </h2>
 
-            <p className="mt-2 text-slate-500">
+            <p className="mt-2 text-base text-slate-500">
               Monitor and manage your ConsultBook platform.
             </p>
           </div>
 
+          {/* Error */}
+          {message && (
+            <div className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+              {message}
+            </div>
+          )}
+
           {/* Statistics */}
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-xs font-bold tracking-wider text-slate-500">
-                TOTAL USERS
-              </p>
-
-              <p className="mt-3 text-4xl font-bold text-[#263451]">
-                4
-              </p>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Registered users
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-xs font-bold tracking-wider text-slate-500">
-                STUDENTS
-              </p>
-
-              <p className="mt-3 text-4xl font-bold text-blue-600">
-                2
-              </p>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Active students
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-xs font-bold tracking-wider text-slate-500">
-                LECTURERS
-              </p>
-
-              <p className="mt-3 text-4xl font-bold text-green-600">
-                1
-              </p>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Active lecturers
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-              <p className="text-xs font-bold tracking-wider text-slate-500">
-                BOOKINGS
-              </p>
-
-              <p className="mt-3 text-4xl font-bold text-orange-500">
-                2
-              </p>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Total consultations
-              </p>
-            </div>
+          <div className="mt-8">
+            <AdminStats
+              totalUsers={
+                stats.totalUsers
+              }
+              students={
+                stats.students
+              }
+              lecturers={
+                stats.lecturers
+              }
+              bookings={
+                stats.bookings
+              }
+              loading={
+                loading
+              }
+            />
           </div>
 
           {/* Quick Actions */}
-          <div className="mt-7 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-[#263451]">
+          <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+
+            <h2 className="text-lg font-bold text-[#14244a]">
               Quick Actions
             </h2>
 
@@ -179,75 +223,39 @@ export default function AdminDashboard() {
               Manage important areas of the platform.
             </p>
 
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+
               <Link
                 href="/admin/users"
-                className="rounded-xl bg-[#2f63c8] p-5 text-center font-semibold text-white hover:bg-blue-700"
+                className="rounded-lg bg-blue-600 px-5 py-4 text-center font-semibold text-white transition hover:bg-blue-700"
               >
                 Manage Users →
               </Link>
 
               <Link
-                href="/admin/bookings"
-                className="rounded-xl border border-blue-600 p-5 text-center font-semibold text-blue-700 hover:bg-blue-50"
-              >
-                View Bookings →
-              </Link>
-
-              <Link
                 href="/admin/reports"
-                className="rounded-xl border border-blue-600 p-5 text-center font-semibold text-blue-700 hover:bg-blue-50"
+                className="rounded-lg border border-blue-600 bg-white px-5 py-4 text-center font-semibold text-blue-600 transition hover:bg-blue-50"
               >
                 Generate Reports →
               </Link>
+
             </div>
           </div>
 
           {/* Recent Activity */}
-          <div className="mt-7 rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 p-6">
-              <h2 className="text-xl font-bold text-[#263451]">
-                Recent Activity
-              </h2>
-            </div>
-
-            <div className="divide-y divide-slate-200">
-              <div className="flex items-center justify-between p-5">
-                <div>
-                  <p className="font-semibold text-[#263451]">
-                    New student account registered
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    A new student joined ConsultBook.
-                  </p>
-                </div>
-
-                <span className="text-sm text-slate-400">
-                  Today
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between p-5">
-                <div>
-                  <p className="font-semibold text-[#263451]">
-                    New consultation booking created
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    A student requested a consultation.
-                  </p>
-                </div>
-
-                <span className="text-sm text-slate-400">
-                  Today
-                </span>
-              </div>
-            </div>
+          <div className="mt-8">
+            <RecentActivity
+              activities={
+                recentActivity
+              }
+              loading={
+                loading
+              }
+            />
           </div>
-        </div>
-      </main>
+
+        </main>
+      </div>
     </div>
   );
 }
-

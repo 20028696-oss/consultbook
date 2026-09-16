@@ -1,36 +1,42 @@
 export default function Features() {
   return (
-    <section className="py-24 bg-white">
+    <section className="bg-white py-24">
 
-      <h2 className="text-5xl font-bold text-center mb-16">
+      <h2 className="mb-16 text-center text-5xl font-bold text-[#14244a]">
         Who can use ConsultBook?
       </h2>
 
-      <div className="max-w-7xl mx-auto grid grid-cols-3 gap-8 px-8">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-8 md:grid-cols-3">
 
-        <div className="border rounded-3xl p-10 shadow">
-          <h3 className="text-2xl font-bold mb-4">
+        {/* Students */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 shadow">
+          <h3 className="mb-4 text-2xl font-bold text-[#14244a]">
             🎓 Students
           </h3>
-          <p>
+
+          <p className="leading-7 text-slate-600">
             Book consultations with lecturers quickly and easily.
           </p>
         </div>
 
-        <div className="border rounded-3xl p-10 shadow">
-          <h3 className="text-2xl font-bold mb-4">
+        {/* Lecturers */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 shadow">
+          <h3 className="mb-4 text-2xl font-bold text-[#14244a]">
             👨‍🏫 Lecturers
           </h3>
-          <p>
+
+          <p className="leading-7 text-slate-600">
             Manage availability and approve consultation requests.
           </p>
         </div>
 
-        <div className="border rounded-3xl p-10 shadow">
-          <h3 className="text-2xl font-bold mb-4">
+        {/* Administrators */}
+        <div className="rounded-3xl border border-slate-200 bg-white p-10 shadow">
+          <h3 className="mb-4 text-2xl font-bold text-[#14244a]">
             ⚙️ Administrators
           </h3>
-          <p>
+
+          <p className="leading-7 text-slate-600">
             Manage users, reports, and platform settings.
           </p>
         </div>

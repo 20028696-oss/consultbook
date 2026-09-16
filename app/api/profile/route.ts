@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -17,7 +16,10 @@ function getAccessToken(request: NextRequest) {
   return authorization.replace("Bearer ", "");
 }
 
-/* GET PROFILE */
+/* =====================================================
+   GET PROFILE
+===================================================== */
+
 export async function GET(request: NextRequest) {
   try {
     const token = getAccessToken(request);
@@ -41,6 +43,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const authRole =
+      user.user_metadata?.role
+        ?.toString()
+        .toLowerCase() || "student";
+
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
@@ -54,23 +61,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // If no profile row exists yet, return basic user information
+    /*
+     * If no profile exists yet, return
+     * information from Supabase Auth.
+     */
     if (!data) {
       return NextResponse.json(
         {
           id: user.id,
-          full_name: user.user_metadata?.full_name || "",
+          full_name:
+            user.user_metadata?.full_name || "",
           email: user.email || "",
-          student_id: "",
+          student_id: null,
           course: "",
+          role: authRole,
         },
         { status: 200 }
       );
     }
 
-    return NextResponse.json(data, { status: 200 });
+    return NextResponse.json(
+      data,
+      { status: 200 }
+    );
   } catch (error) {
-    console.error("Get profile error:", error);
+    console.error(
+      "Get profile error:",
+      error
+    );
 
     return NextResponse.json(
       { message: "Failed to get profile." },
@@ -79,7 +97,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/* UPDATE PROFILE */
+/* =====================================================
+   UPDATE PROFILE
+===================================================== */
+
 export async function PATCH(request: NextRequest) {
   try {
     const token = getAccessToken(request);
@@ -105,26 +126,76 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json();
 
-    const { full_name, student_id, course } = body;
-
-    const profileData = {
-      id: user.id,
+    const {
       full_name,
-      email: user.email || "",
       student_id,
       course,
+    } = body;
+
+    /*
+     * IMPORTANT:
+     * Get the role from the authenticated
+     * Supabase user instead of trusting
+     * a role sent from the frontend.
+     */
+    const authRole =
+      user.user_metadata?.role
+        ?.toString()
+        .toLowerCase() || "student";
+
+    /*
+     * Build profile according to the
+     * authenticated user's role.
+     */
+    const profileData = {
+      id: user.id,
+
+      full_name:
+        full_name?.trim() ||
+        user.user_metadata?.full_name ||
+        user.email?.split("@")[0] ||
+        "User",
+
+      email:
+        user.email || "",
+
+      /*
+       * Only students should have a student ID.
+       */
+      student_id:
+        authRole === "student"
+          ? student_id || null
+          : null,
+
+      course:
+        course?.trim() || null,
+
+      /*
+       * Keep profiles.role synchronized
+       * with Supabase Auth.
+       */
+      role: authRole,
+
+      updated_at:
+        new Date().toISOString(),
     };
 
     const { data, error } = await supabase
       .from("profiles")
-      .upsert(profileData, {
-        onConflict: "id",
-      })
+      .upsert(
+        profileData,
+        {
+          onConflict: "id",
+        }
+      )
       .select()
       .single();
 
     if (error) {
-      console.error("Update profile error:", error);
+      console.error(
+        "Update profile error:",
+        error
+      );
 
       return NextResponse.json(
         { message: error.message },
@@ -132,18 +203,47 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    /*
+     * Keep Auth full_name synchronized too.
+     */
+    const { error: metadataError } =
+      await supabase.auth.updateUser({
+        data: {
+          full_name:
+            profileData.full_name,
+
+          role:
+            authRole,
+        },
+      });
+
+    if (metadataError) {
+      console.error(
+        "Auth metadata update error:",
+        metadataError
+      );
+    }
+
     return NextResponse.json(
       {
-        message: "Profile updated successfully.",
+        message:
+          "Profile updated successfully.",
+
         profile: data,
       },
       { status: 200 }
     );
   } catch (error) {
-    console.error("Profile API error:", error);
+    console.error(
+      "Profile API error:",
+      error
+    );
 
     return NextResponse.json(
-      { message: "Something went wrong." },
+      {
+        message:
+          "Something went wrong.",
+      },
       { status: 500 }
     );
   }

@@ -7,7 +7,10 @@ type RouteContext = {
   }>;
 };
 
-/* GET ONE BOOKING */
+/* =====================================================
+   GET ONE BOOKING
+===================================================== */
+
 export async function GET(
   request: NextRequest,
   { params }: RouteContext
@@ -35,7 +38,10 @@ export async function GET(
       .single();
 
     if (error) {
-      console.error("Get booking error:", error);
+      console.error(
+        "Get booking error:",
+        error
+      );
 
       return NextResponse.json(
         {
@@ -47,15 +53,22 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(data, {
-      status: 200,
-    });
+    return NextResponse.json(
+      data,
+      {
+        status: 200,
+      }
+    );
   } catch (error) {
-    console.error("GET booking error:", error);
+    console.error(
+      "GET booking error:",
+      error
+    );
 
     return NextResponse.json(
       {
-        message: "Failed to get booking.",
+        message:
+          "Failed to get booking.",
       },
       {
         status: 500,
@@ -64,7 +77,12 @@ export async function GET(
   }
 }
 
-/* UPDATE BOOKING */
+/* =====================================================
+   UPDATE BOOKING
+   - student reschedule
+   - lecturer status update
+===================================================== */
+
 export async function PATCH(
   request: NextRequest,
   { params }: RouteContext
@@ -93,28 +111,24 @@ export async function PATCH(
       status,
     } = body;
 
-    /*
-      This route supports:
-
-      1. Student reschedule
-         booking_date + booking_time
-
-      2. Lecturer status update
-         status only
-    */
-
     const updateData: {
       booking_date?: string;
       booking_time?: string;
       status?: string;
     } = {};
 
-    // -----------------------------
-    // RESCHEDULE
-    // -----------------------------
+    /* ---------------------------------------------
+       RESCHEDULE
+    --------------------------------------------- */
 
-    if (booking_date || booking_time) {
-      if (!booking_date || !booking_time) {
+    if (
+      booking_date ||
+      booking_time
+    ) {
+      if (
+        !booking_date ||
+        !booking_time
+      ) {
         return NextResponse.json(
           {
             message:
@@ -126,27 +140,42 @@ export async function PATCH(
         );
       }
 
-      updateData.booking_date = booking_date;
-      updateData.booking_time = booking_time;
+      updateData.booking_date =
+        booking_date;
 
-      // Rescheduled bookings require approval again
-      updateData.status = status || "pending";
+      updateData.booking_time =
+        booking_time;
+
+      /*
+        Rescheduled bookings return to pending
+        unless another valid status is explicitly sent.
+      */
+      updateData.status =
+        status?.toLowerCase() ||
+        "pending";
     }
 
-    // -----------------------------
-    // STATUS UPDATE
-    // -----------------------------
+    /* ---------------------------------------------
+       STATUS UPDATE
+    --------------------------------------------- */
 
-    if (status && !booking_date && !booking_time) {
+    if (
+      status &&
+      !booking_date &&
+      !booking_time
+    ) {
       const validStatuses = [
         "pending",
         "confirmed",
+        "rejected",
         "cancelled",
         "completed",
       ];
 
       const normalisedStatus =
-        status.toLowerCase();
+        status
+          .toString()
+          .toLowerCase();
 
       if (
         !validStatuses.includes(
@@ -155,7 +184,8 @@ export async function PATCH(
       ) {
         return NextResponse.json(
           {
-            message: "Invalid booking status.",
+            message:
+              "Invalid booking status.",
           },
           {
             status: 400,
@@ -167,12 +197,13 @@ export async function PATCH(
         normalisedStatus;
     }
 
-    // -----------------------------
-    // NOTHING PROVIDED
-    // -----------------------------
+    /* ---------------------------------------------
+       NOTHING TO UPDATE
+    --------------------------------------------- */
 
     if (
-      Object.keys(updateData).length === 0
+      Object.keys(updateData)
+        .length === 0
     ) {
       return NextResponse.json(
         {
@@ -185,17 +216,19 @@ export async function PATCH(
       );
     }
 
-    // -----------------------------
-    // UPDATE SUPABASE
-    // -----------------------------
+    /* ---------------------------------------------
+       UPDATE BOOKING
+    --------------------------------------------- */
 
-    const { data, error } =
-      await supabase
-        .from("bookings")
-        .update(updateData)
-        .eq("id", bookingId)
-        .select()
-        .single();
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("bookings")
+      .update(updateData)
+      .eq("id", bookingId)
+      .select()
+      .single();
 
     if (error) {
       console.error(
@@ -211,6 +244,95 @@ export async function PATCH(
           status: 500,
         }
       );
+    }
+
+    /* =================================================
+       CREATE STUDENT NOTIFICATION
+    ================================================= */
+
+    const updatedStatus =
+      data.status
+        ?.toString()
+        .toLowerCase();
+
+    if (
+      data.student_id &&
+      (
+        updatedStatus === "confirmed" ||
+        updatedStatus === "rejected" ||
+        updatedStatus === "cancelled"
+      )
+    ) {
+      let title = "";
+      let notificationMessage = "";
+
+      if (
+        updatedStatus ===
+        "confirmed"
+      ) {
+        title =
+          "Booking Confirmed";
+
+        notificationMessage =
+          `Your consultation with ${data.lecturer_name} on ${data.booking_date} at ${data.booking_time} has been confirmed.`;
+      }
+
+      if (
+        updatedStatus ===
+        "rejected"
+      ) {
+        title =
+          "Booking Rejected";
+
+        notificationMessage =
+          `Your consultation request with ${data.lecturer_name} has been rejected.`;
+      }
+
+      if (
+        updatedStatus ===
+        "cancelled"
+      ) {
+        title =
+          "Booking Cancelled";
+
+        notificationMessage =
+          `Your consultation with ${data.lecturer_name} has been cancelled.`;
+      }
+
+      const {
+        error:
+          notificationError,
+      } = await supabase
+        .from("notifications")
+        .insert([
+          {
+            user_id:
+              data.student_id,
+
+            booking_id:
+              data.id,
+
+            title,
+
+            message:
+              notificationMessage,
+
+            type:
+              updatedStatus,
+
+            is_read:
+              false,
+          },
+        ]);
+
+      if (
+        notificationError
+      ) {
+        console.error(
+          "Notification creation error:",
+          notificationError
+        );
+      }
     }
 
     return NextResponse.json(
@@ -241,7 +363,10 @@ export async function PATCH(
   }
 }
 
-/* CANCEL BOOKING */
+/* =====================================================
+   CANCEL BOOKING
+===================================================== */
+
 export async function DELETE(
   request: NextRequest,
   { params }: RouteContext
@@ -262,15 +387,17 @@ export async function DELETE(
       );
     }
 
-    const { data, error } =
-      await supabase
-        .from("bookings")
-        .update({
-          status: "cancelled",
-        })
-        .eq("id", bookingId)
-        .select()
-        .single();
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("bookings")
+      .update({
+        status: "cancelled",
+      })
+      .eq("id", bookingId)
+      .select()
+      .single();
 
     if (error) {
       console.error(
@@ -286,6 +413,50 @@ export async function DELETE(
           status: 500,
         }
       );
+    }
+
+    /* =================================================
+       CREATE CANCELLED NOTIFICATION
+    ================================================= */
+
+    if (
+      data.student_id
+    ) {
+      const {
+        error:
+          notificationError,
+      } = await supabase
+        .from("notifications")
+        .insert([
+          {
+            user_id:
+              data.student_id,
+
+            booking_id:
+              data.id,
+
+            title:
+              "Booking Cancelled",
+
+            message:
+              `Your consultation with ${data.lecturer_name} on ${data.booking_date} at ${data.booking_time} has been cancelled.`,
+
+            type:
+              "cancelled",
+
+            is_read:
+              false,
+          },
+        ]);
+
+      if (
+        notificationError
+      ) {
+        console.error(
+          "Cancelled notification error:",
+          notificationError
+        );
+      }
     }
 
     return NextResponse.json(

@@ -1,6 +1,3 @@
-
-
-
 "use client";
 
 import { useState } from "react";
@@ -14,6 +11,7 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
+  const [subject, setSubject] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -24,8 +22,19 @@ export default function RegisterPage() {
   ) => {
     e.preventDefault();
 
-    if (!fullName || !email || !role || !password || !confirmPassword) {
+    if (
+      !fullName ||
+      !email ||
+      !role ||
+      !password ||
+      !confirmPassword
+    ) {
       alert("Please fill in all fields.");
+      return;
+    }
+
+    if (role === "lecturer" && !subject.trim()) {
+      alert("Please enter the lecturer subject.");
       return;
     }
 
@@ -42,12 +51,15 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
+      const cleanName = fullName.trim();
+      const cleanEmail = email.trim().toLowerCase();
+
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: cleanEmail,
         password,
         options: {
           data: {
-            full_name: fullName,
+            full_name: cleanName,
             role: role,
           },
         },
@@ -58,23 +70,61 @@ export default function RegisterPage() {
         return;
       }
 
-      if (data.user) {
-        alert(
-          "Registration successful! Please check your email to confirm your account."
-        );
-
-        router.push("/");
+      if (!data.user) {
+        alert("Unable to create account.");
+        return;
       }
+
+      if (role === "lecturer") {
+        const { error: lecturerError } = await supabase
+          .from("lecturers")
+          .upsert(
+            {
+              full_name: cleanName,
+              subject: subject.trim(),
+              email: cleanEmail,
+            },
+            {
+              onConflict: "email",
+            }
+          );
+
+        if (lecturerError) {
+          console.error(
+            "Lecturer table error:",
+            lecturerError
+          );
+
+          alert(
+            "Account created, but lecturer could not be added to lecturer list: " +
+              lecturerError.message
+          );
+
+          return;
+        }
+      }
+
+      alert(
+        "Registration successful! Please check your email to confirm your account."
+      );
+
+      router.push("/");
     } catch (error) {
       console.error("Registration error:", error);
-      alert("Something went wrong. Please try again.");
+
+      alert(
+        "Something went wrong. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  const inputClass =
+    "w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500";
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gray-100">
+    <main className="flex min-h-screen items-center justify-center bg-gray-100 py-10">
       <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
 
         <h1 className="mb-6 text-center text-3xl font-bold text-blue-600">
@@ -85,9 +135,11 @@ export default function RegisterPage() {
           Consultation Booking & Scheduling Platform
         </p>
 
-        <form onSubmit={handleRegister} className="space-y-4">
+        <form
+          onSubmit={handleRegister}
+          className="space-y-4"
+        >
 
-          {/* Full Name */}
           <div>
             <label className="mb-2 block text-gray-700">
               Full Name
@@ -97,12 +149,13 @@ export default function RegisterPage() {
               type="text"
               placeholder="Enter your full name"
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="w-full rounded-lg border px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) =>
+                setFullName(e.target.value)
+              }
+              className={inputClass}
             />
           </div>
 
-          {/* Email */}
           <div>
             <label className="mb-2 block text-gray-700">
               Email Address
@@ -112,12 +165,13 @@ export default function RegisterPage() {
               type="email"
               placeholder="Enter your email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              className={inputClass}
             />
           </div>
 
-          {/* Role */}
           <div>
             <label className="mb-2 block text-gray-700">
               User Role
@@ -125,28 +179,51 @@ export default function RegisterPage() {
 
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full rounded-lg border px-4 py-3"
+              onChange={(e) => {
+                setRole(e.target.value);
+
+                if (e.target.value !== "lecturer") {
+                  setSubject("");
+                }
+              }}
+              className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">
                 Select Role
               </option>
 
               <option value="student">
-  Student
-</option>
+                Student
+              </option>
 
-<option value="lecturer">
-  Lecturer
-</option>
+              <option value="lecturer">
+                Lecturer
+              </option>
 
-<option value="admin">
-  Admin
-</option>
+              <option value="admin">
+                Admin
+              </option>
             </select>
           </div>
 
-          {/* Password */}
+          {role === "lecturer" && (
+            <div>
+              <label className="mb-2 block text-gray-700">
+                Subject
+              </label>
+
+              <input
+                type="text"
+                placeholder="Example: Cyber Security"
+                value={subject}
+                onChange={(e) =>
+                  setSubject(e.target.value)
+                }
+                className={inputClass}
+              />
+            </div>
+          )}
+
           <div>
             <label className="mb-2 block text-gray-700">
               Password
@@ -156,12 +233,13 @@ export default function RegisterPage() {
               type="password"
               placeholder="Create password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
+              className={inputClass}
             />
           </div>
 
-          {/* Confirm Password */}
           <div>
             <label className="mb-2 block text-gray-700">
               Confirm Password
@@ -171,18 +249,21 @@ export default function RegisterPage() {
               type="password"
               placeholder="Confirm password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-lg border px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onChange={(e) =>
+                setConfirmPassword(e.target.value)
+              }
+              className={inputClass}
             />
           </div>
 
-          {/* Register Button */}
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-lg bg-blue-600 py-3 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-400"
           >
-            {loading ? "Creating Account..." : "Register"}
+            {loading
+              ? "Creating Account..."
+              : "Register"}
           </button>
 
         </form>
@@ -202,4 +283,3 @@ export default function RegisterPage() {
     </main>
   );
 }
-
