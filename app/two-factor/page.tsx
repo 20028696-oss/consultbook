@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import {
   useRouter,
@@ -10,7 +10,7 @@ import {
 } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 
-export default function TwoFactorPage() {
+function TwoFactorPageContent() {
   const router = useRouter();
   const searchParams =
     useSearchParams();
@@ -467,5 +467,12 @@ export default function TwoFactorPage() {
       </div>
 
     </main>
+  );
+}
+export default function TwoFactorPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <TwoFactorPageContent />
+    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import StudentSidebar from "@/components/student/StudentSidebar";
 import StudentTopbar from "@/components/student/StudentTopbar";
@@ -22,7 +22,7 @@ type Availability = {
   is_available: boolean;
 };
 
-export default function BookingPage() {
+function BookingPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -901,5 +901,12 @@ export default function BookingPage() {
       </main>
 
     </div>
+  );
+}
+export default function BookingPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <BookingPageContent />
+    </Suspense>
   );
 }
